@@ -106,6 +106,21 @@ hreloaderlib
   :dependsOn(hreloadero.path)
   :recipe(recipes.linker(link_lib_driver, proj))
 
+-- Output the object files used by the executable, as we use them to filter
+-- what symbols to patch.
+-- TODO(sushi) this should prob be a lake target and what not.
+local odef = lake.target(hreload.path..".odef")
+odef:dependsOn(hreload.path)
+odef:recipe(function()
+  local f = io.open(odef.path, "w")
+  if not f then
+    error("failed to open '"..odef.path.."' for writing")
+  end
+  lake.flatten(proj:collectObjFiles()):each(function(ofile)
+    f:write(ofile, "\n")
+  end)
+  f:close()
+end)
 
 
 

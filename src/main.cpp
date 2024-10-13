@@ -4,11 +4,14 @@
 #include "string.h"
 #include "unistd.h"
 #include "errno.h"
+#include "link.h"
+#include "stdlib.h"
 
 #include "iro/common.h"
 #include "iro/fs/file.h"
 #include "iro/logger.h"
 #include "iro/process.h"
+#include "iro/platform.h"
 
 #include "Reloader.h"
 
@@ -26,18 +29,23 @@ using namespace iro;
 
 inline Logger logger = Logger::create("hreload"_str, Logger::Verbosity::Info);
 
-static void banana(int a, int b)
+static void orange()
 {
-  INFO("a + b = ", a + b, "\n");
+  INFO("orange\n");
 }
 
-extern "C" int apple()
+static void banana(int a, int b, int c, int d)
+{
+  INFO("a+b+c+d= ", a+b+c+d, "\n");
+  orange();
+}
+
+extern "C" void apple()
 {
   int a = 0;
   int b = 1;
-  printf("apple  123123 123123  hi\n");
-  banana(1, 2);
-  return a + b;
+  INFO("new apple\n");
+  banana(1, 2, 3, 4);
 }
 
 extern "C" void syncGlobal(void* dest, void* src, u64 size, b8 to_me)
@@ -114,7 +122,7 @@ b8 doReload(
   defer { munmap(remappings, mapsize); };
 
   ReloadContext context;
-  context.objpath = "build/debug/src/main.cpp.o"_str;
+  context.odefpath = "build/debug/hreload.odef"_str;
   context.exepath = "build/debug/hreload"_str;
   context.reloadee_handle = dlhandle;
   context.remappings = { remappings, num_remappings };
@@ -134,7 +142,8 @@ b8 doReload(
     if (remapping->old_addr == &doReload)
       continue;
 
-    INFO("remapping ", remapping->old_addr, " to ", remapping->new_addr, "\n");
+    TRACE("remapping ", remapping->old_addr, " to ", remapping->new_addr, 
+          "\n");
 
     switch (remapping->kind)
     {
@@ -145,6 +154,16 @@ b8 doReload(
           return ERROR("failed to mprotect ", aligned, ": ", 
                        strerror(errno), "\n");
         memcpy(remapping->old_addr, remapping->func.bytes, 16);
+      }
+      break;
+
+    case Remapping::Kind::Mem:
+      {
+        void* aligned = (void*)((size_t)remapping->new_addr & -getpagesize());
+        if (mprotect(aligned, 4096*2, PROT_EXEC | PROT_READ | PROT_WRITE))
+          return ERROR("failed to mprotect ", aligned, ": ", 
+                       strerror(errno), "\n");
+        memcpy(remapping->new_addr, remapping->old_addr, remapping->mem.size);
       }
       break;
     }
@@ -184,6 +203,11 @@ int main()
   void* hrlib = dlopen("build/debug/libhreloader.so", RTLD_LAZY);
   INFO("lib opened\n");
 
+  struct link_map* lm;
+  dlinfo(dlopen(nullptr, RTLD_LAZY), RTLD_DI_LINKMAP, &lm);
+
+  INFO("addr: ", (void*)lm->l_addr, "\n");
+
   auto create_reloader =
     (Reloader* (*)())dlsym(hrlib, "hreloadCreateReloader");
 
@@ -202,15 +226,24 @@ int main()
 
   void* dlhandle = dlopen(nullptr, RTLD_LAZY);
 
+  INFO("dlhandle: ", dlhandle, "\n");
+
   Reloader* reloader = create_reloader();
 
   void* inthandle = nullptr;
 
-  auto test = (void (*)(u32*))dlsym(hrlib, "test");
+  auto test = (void (*)(Array<u32>*))dlsym(hrlib, "test");
 
-  u32 x = 10;
-  test(&x);
-  INFO("test: ", x);
+  auto copyLog = (void (*)(iro::Log*))dlsym(hrlib, "copyLog");
+
+  copyLog(&iro::log);
+
+  Array<u32> arr;
+  arr.init();
+
+  test(&arr);
+
+  arr.clear();
 
   for (;;)
   {

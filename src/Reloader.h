@@ -17,7 +17,10 @@ struct Remapping
 {
   enum class Kind
   {
-    Weak,
+    // Memory that should be copied from the old to the new addr.
+    Mem,
+    // A function that needs to be patched with some code to redirect it 
+    // to the new function call.
     Func,
   };
 
@@ -29,7 +32,7 @@ struct Remapping
     {
       // The size of the weak global thing.
       u64 size;
-    } weak;
+    } mem;
 
     struct 
     {
@@ -48,15 +51,18 @@ struct Remapping
 
 struct ReloadContext
 {
-  // Path to the object file that we will search for symbols to reload.
-  str objpath;
+  // Path to the .odef file generated for the executable being reloaded. This
+  // is just a newline delimited list of all the object files used 
+  str odefpath;
 
-  // Path to the normal executable of the reloaded process. The patched
-  // executable is required to have been generated with a name of the 
-  // format:
+  // Path to the patched or initial executable of the reloaded process. 
+  // The patched executable is required to have been generated with a name of 
+  // the format:
   //   <name>.patch<n>.so
-  // where <n> is the patch number as reported by the 
-  // ReloaderPatchNumberFunc function.
+  // where <n> is the patch number as reported by the ReloaderPatchNumberFunc 
+  // function.
+  // TODO(sushi) I don't think that keeping these patches around is necessary
+  //             anymore.
   str exepath;
 
   // Handle to the dynamic symbol table of the thing being reloaded.
