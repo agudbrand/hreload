@@ -1,5 +1,10 @@
 /*
  *  Type representing the actual logic used to perform reloading.
+ *
+ *  TODO(sushi) the way this is organized isn't really necessary anymore. I 
+ *              initially thought I needed to hide the reloader's symbols 
+ *              to prevent them getting patched during a reload, so I made it
+ *              so that the interface is loaded dynamically.
  */
 
 #ifndef _hreload_reloader_h
@@ -11,10 +16,15 @@
 
 using namespace iro;
 
+namespace hr
+{
+
 struct Reloader;
 
 struct Remapping
 {
+  String symbol;
+
   enum class Kind
   {
     // Memory that should be copied from the old to the new addr.
@@ -51,9 +61,9 @@ struct Remapping
 
 struct ReloadContext
 {
-  // Path to the .odef file generated for the executable being reloaded. This
+  // Path to the .hrf file generated for the executable being reloaded. This
   // is just a newline delimited list of all the object files used 
-  str odefpath;
+  String hrfpath;
 
   // Path to the patched or initial executable of the reloaded process. 
   // The patched executable is required to have been generated with a name of 
@@ -63,16 +73,11 @@ struct ReloadContext
   // function.
   // TODO(sushi) I don't think that keeping these patches around is necessary
   //             anymore.
-  str exepath;
+  String exepath;
 
   // Handle to the dynamic symbol table of the thing being reloaded.
   // Eg. this comes from dlopen(nullptr, ...).
   void* reloadee_handle;
-
-  // Mapped array of function remappings that the reloadee is expected
-  // to write after reloading is finished. This must have been mapped 
-  // using mmap with the MAP_SHARED flag.
-  Slice<Remapping> remappings;
 };
 
 struct ReloadResult
@@ -92,5 +97,16 @@ typedef b8 (*ReloadFunc)(Reloader*,const ReloadContext&, ReloadResult*);
 
 // The type of the reloader's patch number reporter function.
 typedef u64 (*ReloaderPatchNumberFunc)(Reloader*);
+
+Reloader* createReloader();
+
+b8 doReload(
+    Reloader* r, 
+    const ReloadContext& context, 
+    ReloadResult* out_result);
+
+u64 getPatchNumber(Reloader* r);
+
+}
 
 #endif
