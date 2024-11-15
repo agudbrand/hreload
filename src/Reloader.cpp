@@ -552,7 +552,8 @@ struct Reloader
                 aligned, 
                 getpagesize(), 
                 PROT_EXEC | PROT_READ | PROT_WRITE))
-            return ERROR("failed to mprotect ", aligned, ": ", 
+            return ERROR("failed to mprotect ", aligned, " when patching "
+                         "function '", from_name, "': ", 
                          strerror(errno), "\n");
 
           u8* bytes = (u8*)from_addr;
@@ -672,11 +673,14 @@ struct Reloader
                 elf.getSectionHeader(from_ent->st_shndx).getName(), "\n");
 
           void* aligned = (void*)((u64)to_addr & -getpagesize());
+          u64 size = ((u8*)to_addr - (u8*)aligned) + to_ent->st_size;
+
           if (mprotect(
                 aligned, 
-                2*getpagesize(), 
+                size, 
                 PROT_EXEC | PROT_READ | PROT_WRITE))
-            return ERROR("failed to mprotect ", aligned, ": ", 
+            return ERROR("failed to mprotect ", aligned, " while patching '",
+                         from_name, "': ",
                          strerror(errno), "\n");
 
           mem::copy(to_addr, from_addr, from_ent->st_size);

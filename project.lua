@@ -12,7 +12,7 @@ local mode = enosi.mode
 local builddir = cwd.."/build/"..mode.."/"
 
 proj:setCleaner(function()
-  lake.rm(builddir, {recursive=true,force=true})
+  lake.rm(cwd.."/build", {recursive=true,force=true})
 end)
 
 proj:dependsOn("iro")
